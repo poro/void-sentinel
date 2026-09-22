@@ -26,3 +26,7 @@ Starter from course template (already built). Commit: Phase 1 starter.
 ## R6
 **Prompt:** Implement R6 from PRD.md only. Do not modify any other behavior.
 **Outcome:** Four bunkers between the ship and invaders each absorb six hits total from player or enemy shots. Each hit consumes the shot, dims the bunker, and removes one lit health segment; the sixth destroys it. Shield damage persists between waves.
+
+## R7
+**Prompt:** Implement R7 from PRD.md only. Do not modify any other behavior.
+**Outcome:** The game opens on a SPACE DEFENSE title screen and starts with Space. P pauses/resumes gameplay, including wave banners and timers. GAME OVER shows the final score and an R restart prompt; restarting resets the run while preserving the hi-score, without reloading the page.
