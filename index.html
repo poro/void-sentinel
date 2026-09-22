@@ -1,1 +1,409 @@
-LOADING
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Void Sentinel</title>
+<style>
+body { background: #080d18; color: #e4f5ff; font-family: monospace; display: flex; flex-direction: column; align-items: center; }
+h1 { letter-spacing: 0.18em; margin-bottom: 0; }
+canvas { border: 2px solid #334b63; margin-top: 16px; background: #101018; max-width: 100%; height: auto; image-rendering: pixelated; }
+p { color: #9db5c9; text-align: center; }
+</style>
+</head>
+<body>
+<h1>VOID SENTINEL</h1>
+<p>Arrows/AD to move, Space to start/fire, P to pause/resume, R to restart after game over.</p>
+<canvas id="game" width="800" height="600" aria-label="Void Sentinel game field"></canvas>
+<script>
+globalThis.VOID_SPRITES = (function(){
+const ART = {
+sentinel: [
+'.......22.......', '.......22.......', '.......11.......',
+'..1....11....1..', '..11..1221..11..', '.11111233211111.',
+'1111112332111111', '1122111111112211', '1111..1111..1111',
+'.33....33....33.'
+],
+wraith: [
+'.....11.....', '..1..11..1..', '..11111111..', '...122221...',
+'..12222221..', '.1223223221.', '..12222221..', '...122221...',
+'....1111....', '...11..11...', '..11....11..', '.11......11.'
+],
+raker: [
+'..1......1..', '...1....1...', '..11111111..', '.1122112211.',
+'111331133111', '1.11111111.1', '1..122221..1', '11.111111.11',
+'.1..1..1..1.', '....1..1....', '...11..11...', '..11....11..'
+],
+crawler: [
+'...111111...', '.1112222111.', '111222222111', '112232232211',
+'111222222111', '.1111111111.', '...112211...', '.1111111111.',
+'11.11..11.11', '1..1....1..1', '...1....1...', '..11....11..'
+],
+shield: [
+'....1111111111....', '..11122222222111..', '.1122222222222211.',
+'112211211211212211', '112222222222222211', '112221111111122211',
+'11221........12211', '11111........11111'
+],
+ufo: [
+'.......111111.......', '......12222221......', '....111233332111....',
+'..1111111111111111..', '11122122122122122111', '..1111111111111111..',
+'....33...33...33....'
+],
+playerShot: ['12', '22', '22', '11', '11', '1.'],
+enemyShot: ['1.', '12', '.2', '21', '2.', '.1']
+};
+const INK = {
+sentinel: { 1: '#69d9e8', 2: '#effaff', 3: '#fcbb63' },
+wraith: { 1: '#a68ad5', 2: '#e0cfff', 3: '#182136' },
+raker: { 1: '#e98a72', 2: '#ffe0af', 3: '#182136' },
+crawler: { 1: '#76ae92', 2: '#c7edba', 3: '#182136' },
+ufo: { 1: '#cf8148', 2: '#ffe6a3', 3: '#faffef' }
+};
+const SHIELD_CRATERS = [[3, 1], [14, 6], [9, 0], [1, 5], [16, 2]];
+return { ART, INK, SHIELD_CRATERS };
+})();
+// Void Sentinel
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+let score = 0;
+let hiScore = 0;
+const HI_SCORE_KEY = 'space-defense-hi-score';
+try {
+const saved = Number(sessionStorage.getItem(HI_SCORE_KEY));
+if (Number.isSafeInteger(saved) && saved >= 0) hiScore = saved;
+} catch (_) { /* Keep playing if browser storage is unavailable. */ }
+const ROW_POINTS = [30, 20, 10, 10];
+function addScore(points) {
+score += points;
+if (score > hiScore) {
+hiScore = score;
+try {
+sessionStorage.setItem(HI_SCORE_KEY, String(hiScore));
+} catch (_) { /* The in-memory hi-score still works. */ }
+}
+}
+const ART = globalThis.VOID_SPRITES.ART;
+const INK = globalThis.VOID_SPRITES.INK;
+function drawPixels(sprite, x, y, scale, palette, erased = () => false) {
+for (let row = 0; row < sprite.length; row++) {
+for (let col = 0; col < sprite[row].length; col++) {
+const color = palette[sprite[row][col]];
+if (!color || erased(col, row)) continue;
+ctx.fillStyle = color;
+ctx.fillRect(Math.round(x) + col * scale, Math.round(y) + row * scale, scale, scale);
+}
+}
+}
+const SHIELD_CRATERS = globalThis.VOID_SPRITES.SHIELD_CRATERS;
+function drawShield(shield) {
+if (shield.hits === 0) return;
+const damage = SHIELD_HITS - shield.hits;
+drawPixels(ART.shield, shield.x, shield.y, 4,
+{ 1: '#456879', 2: `hsl(170, 45%, ${28 + shield.hits * 6}%)` },
+(x, y) => SHIELD_CRATERS.slice(0, damage).some(([cx, cy]) =>
+Math.abs(x - cx) + Math.abs(y - cy) <= 2));
+for (let i = 0; i < SHIELD_HITS; i++) {
+ctx.fillStyle = i < shield.hits ? '#d7fff1' : '#293b4b';
+ctx.fillRect(shield.x + 14 + i * 8, shield.y + 12, 4, 4);
+}
+}
+const UFO_INTERVAL = 20;
+let ufo = null;
+let ufoTimer = UFO_INTERVAL;
+let ufoDirection = 1;
+let bonusNotice = null;
+function updateUfo(dt) {
+if (bonusNotice) {
+bonusNotice.time -= dt;
+if (bonusNotice.time <= 0) bonusNotice = null;
+}
+if (ufo) {
+ufo.x += ufo.direction * 70 * dt;
+if (ufo.x > W || ufo.x + ufo.w < 0) ufo = null;
+}
+ufoTimer -= dt;
+if (ufoTimer <= 0 && !ufo) {
+ufo = { x: ufoDirection > 0 ? -60 : W, y: 34, w: 60, h: 21, direction: ufoDirection };
+ufoDirection *= -1;
+ufoTimer = UFO_INTERVAL;
+}
+}
+const ship = { x: W/2, y: H-50, w: 48, h: 20, speed: 300 };
+let lives = 3;
+let lostByDescent = false;
+let invulnerabilityTimer = 0;
+const keys = {};
+let gameState = 'START';
+document.addEventListener('keydown', e => {
+if (e.key === ' ') e.preventDefault();
+if (!e.repeat) {
+if (gameState === 'START' && e.key === ' ') {
+startGame();
+return;
+}
+if (gameState === 'GAME_OVER' && e.key.toLowerCase() === 'r') {
+startGame();
+return;
+}
+if (e.key.toLowerCase() === 'p' && (gameState === 'PLAYING' || gameState === 'PAUSED')) {
+gameState = gameState === 'PLAYING' ? 'PAUSED' : 'PLAYING';
+for (const key in keys) delete keys[key];
+return;
+}
+}
+if (gameState === 'PLAYING') keys[e.key] = true;
+});
+document.addEventListener('keyup',   e => { keys[e.key] = false; });
+let bullet = null; 
+const SHIELD_HITS = 6;
+const shields = Array.from({ length: 4 }, (_, i) => ({
+x: W * (i + 1) / 5 - 36, y: H - 120, w: 72, h: 32, hits: SHIELD_HITS
+}));
+function hitShield(x, top, bottom) {
+for (const shield of shields) {
+if (shield.hits > 0 && x + 2 >= shield.x && x - 2 <= shield.x + shield.w &&
+bottom >= shield.y && top <= shield.y + shield.h) {
+shield.hits--;
+return true;
+}
+}
+return false;
+}
+const enemyBullets = [];
+let enemyFireTimer = nextEnemyFireDelay();
+let shipHitFlash = 0;
+function nextEnemyFireDelay() { return 0.8 + Math.random() * 1.2; }
+const ROWS = 4, COLS = 8, SIZE = 48;
+let invaders, marchDir, marchSpeed;
+let wave = 1;
+let waveBannerTimer = 0;
+function spawnGrid() {
+invaders = [];
+for (let r = 0; r < ROWS; r++)
+for (let c = 0; c < COLS; c++)
+invaders.push({ col: c, row: r, alive: true });
+gridX = (W - COLS*SIZE) / 2;
+gridY = 60 + (wave - 1) * SIZE;
+marchDir = 1;
+marchSpeed = 30 * Math.pow(1.2, wave - 1);
+}
+let gridX, gridY;
+function startGame() {
+score = 0;
+ship.x = W / 2;
+lives = 3;
+lostByDescent = false;
+invulnerabilityTimer = 0;
+shipHitFlash = 0;
+bullet = null;
+ufo = null;
+ufoTimer = UFO_INTERVAL;
+ufoDirection = 1;
+bonusNotice = null;
+enemyBullets.length = 0;
+enemyFireTimer = nextEnemyFireDelay();
+wave = 1;
+waveBannerTimer = 0;
+for (const shield of shields) shield.hits = SHIELD_HITS;
+for (const key in keys) delete keys[key];
+spawnGrid();
+gameState = 'PLAYING';
+}
+function aliveInvaders() { return invaders.filter(i => i.alive); }
+function invaderScreenPos(inv) {
+return { x: gridX + inv.col*SIZE, y: gridY + inv.row*SIZE };
+}
+function update(dt) {
+if (gameState !== 'PLAYING') return;
+if (waveBannerTimer > 0) {
+waveBannerTimer = Math.max(0, waveBannerTimer - dt);
+return;
+}
+if (keys['ArrowLeft'] || keys['a']) ship.x -= ship.speed * dt;
+if (keys['ArrowRight'] || keys['d']) ship.x += ship.speed * dt;
+ship.x = Math.max(ship.w/2, Math.min(W - ship.w/2, ship.x));
+shipHitFlash = Math.max(0, shipHitFlash - dt);
+invulnerabilityTimer = Math.max(0, invulnerabilityTimer - dt);
+for (let i = enemyBullets.length - 1; i >= 0; i--) {
+const shot = enemyBullets[i];
+const previousY = shot.y;
+shot.y += 250 * dt;
+if (hitShield(shot.x, previousY, shot.y + 12)) {
+enemyBullets.splice(i, 1);
+continue;
+}
+const hitsBody = shot.x + 2 >= ship.x - ship.w/2 &&
+shot.x - 2 <= ship.x + ship.w/2 &&
+shot.y + 12 >= ship.y && shot.y <= ship.y + ship.h;
+const hitsCannon = shot.x + 2 >= ship.x - 4 &&
+shot.x - 2 <= ship.x + 4 &&
+shot.y + 12 >= ship.y - 10 && shot.y <= ship.y;
+if (hitsBody || hitsCannon) {
+enemyBullets.splice(i, 1);
+if (invulnerabilityTimer === 0) {
+lives--;
+shipHitFlash = 0.25;
+invulnerabilityTimer = 1;
+if (lives === 0) {
+gameState = 'GAME_OVER';
+return;
+}
+}
+} else if (shot.y > H) {
+enemyBullets.splice(i, 1);
+}
+}
+updateUfo(dt);
+if (keys[' '] && !bullet) bullet = { x: ship.x, y: ship.y - 14 };
+const previousBulletY = bullet ? bullet.y : null;
+if (bullet) {
+const previousY = bullet.y;
+bullet.y -= 500 * dt;
+if (hitShield(bullet.x, bullet.y - 8, previousY + 4) || bullet.y < -10) bullet = null;
+}
+const alive = aliveInvaders();
+if (alive.length === 0) {
+wave++;
+bullet = null;
+enemyBullets.length = 0;
+enemyFireTimer = nextEnemyFireDelay();
+spawnGrid();
+waveBannerTimer = 1.2;
+return;
+}
+const xs = alive.map(i => invaderScreenPos(i).x);
+const minX = Math.min(...xs), maxX = Math.max(...xs) + SIZE;
+gridX += marchDir * marchSpeed * dt;
+if ((marchDir > 0 && maxX + marchDir*marchSpeed*dt >= W - 8) ||
+(marchDir < 0 && minX + marchDir*marchSpeed*dt <= 8)) {
+marchDir *= -1;
+gridY += 24;
+}
+if (alive.some(inv => invaderScreenPos(inv).y + SIZE >= ship.y)) {
+lostByDescent = true;
+gameState = 'GAME_OVER';
+return;
+}
+if (bullet) {
+for (const inv of alive) {
+const p = invaderScreenPos(inv);
+if (bullet.x > p.x && bullet.x < p.x + SIZE && bullet.y > p.y && bullet.y < p.y + SIZE) {
+inv.alive = false;
+bullet = null;
+addScore(ROW_POINTS[inv.row]);
+marchSpeed += 4;
+break;
+}
+}
+}
+if (bullet && ufo && bullet.x + 2 >= ufo.x && bullet.x - 2 <= ufo.x + ufo.w &&
+bullet.y - 8 <= ufo.y + ufo.h && previousBulletY + 4 >= ufo.y) {
+const points = 50 + Math.floor(Math.random() * 251);
+addScore(points);
+bonusNotice = { x: Math.max(60, Math.min(W - 60, ufo.x + ufo.w / 2)), points, time: 1.4 };
+bullet = null;
+ufo = null;
+}
+if (aliveInvaders().length === 0) {
+wave++;
+bullet = null;
+enemyBullets.length = 0;
+enemyFireTimer = nextEnemyFireDelay();
+spawnGrid();
+waveBannerTimer = 1.2;
+return;
+}
+enemyFireTimer -= dt;
+if (enemyFireTimer <= 0) {
+const bottomInvaders = [];
+for (const inv of aliveInvaders()) {
+const bottom = bottomInvaders[inv.col];
+if (!bottom || inv.row > bottom.row) bottomInvaders[inv.col] = inv;
+}
+const shooters = bottomInvaders.filter(Boolean);
+if (shooters.length) {
+const shooter = shooters[Math.floor(Math.random() * shooters.length)];
+const p = invaderScreenPos(shooter);
+enemyBullets.push({ x: p.x + SIZE/2, y: p.y + SIZE });
+}
+enemyFireTimer = nextEnemyFireDelay();
+}
+}
+function draw() {
+ctx.fillStyle = '#101018';
+ctx.fillRect(0, 0, W, H);
+for (const shield of shields) drawShield(shield);
+if (invulnerabilityTimer === 0 || Math.ceil(invulnerabilityTimer * 10) % 2 === 0) {
+drawPixels(ART.sentinel, ship.x - ship.w/2, ship.y - 10, 3,
+shipHitFlash > 0 ? { 1: '#ff5555', 2: '#ffffff', 3: '#ffb8a0' } : INK.sentinel);
+}
+for (const shot of enemyBullets) {
+drawPixels(ART.enemyShot, shot.x - 2, shot.y, 2, { 1: '#ff8d82', 2: '#fff1ca' });
+}
+if (bullet) {
+drawPixels(ART.playerShot, bullet.x - 2, bullet.y - 8, 2, { 1: '#69d9e8', 2: '#effaff' });
+}
+for (const inv of aliveInvaders()) {
+const p = invaderScreenPos(inv);
+const type = inv.row === 0 ? 'wraith' : inv.row === 1 ? 'raker' : 'crawler';
+drawPixels(ART[type], p.x + 6, p.y + 6, 3, INK[type]);
+}
+if (ufo) drawPixels(ART.ufo, ufo.x, ufo.y, 3, INK.ufo);
+if (bonusNotice) {
+ctx.save();
+ctx.fillStyle = '#ffe6a3';
+ctx.font = '16px monospace';
+ctx.textAlign = 'center';
+ctx.fillText(`+${bonusNotice.points}`, bonusNotice.x, 52);
+ctx.restore();
+}
+ctx.fillStyle = '#efefef';
+ctx.font = '20px monospace';
+ctx.fillText(`Lives: ${lives}`, 16, 28);
+ctx.save();
+ctx.textAlign = 'right';
+ctx.fillText(`Score: ${score}  Hi-score: ${hiScore}`, W - 16, 28);
+ctx.restore();
+if (waveBannerTimer > 0) {
+ctx.save();
+ctx.fillStyle = '#101018';
+ctx.fillRect(0, H/2 - 36, W, 60);
+ctx.fillStyle = '#efefef';
+ctx.font = '36px monospace';
+ctx.textAlign = 'center';
+ctx.fillText(`WAVE ${wave}`, W/2, H/2 + 6);
+ctx.restore();
+}
+if (gameState !== 'PLAYING') {
+ctx.save();
+ctx.fillStyle = 'rgba(16, 16, 24, 0.9)';
+ctx.fillRect(0, 0, W, H);
+ctx.fillStyle = '#efefef';
+ctx.font = '36px monospace';
+ctx.textAlign = 'center';
+const title = gameState === 'START' ? 'VOID SENTINEL' :
+gameState === 'PAUSED' ? 'PAUSED' : 'GAME OVER';
+ctx.fillText(title, W/2, H/2 - 40);
+ctx.font = '20px monospace';
+if (gameState === 'GAME_OVER') {
+ctx.fillText(`Score: ${score}  Hi-score: ${hiScore}`, W/2, H/2);
+ctx.fillText('Press R to restart', W/2, H/2 + 40);
+} else {
+ctx.fillText(gameState === 'START' ? 'Press Space to start' : 'Press P to resume', W/2, H/2 + 20);
+}
+ctx.restore();
+}
+}
+let last = performance.now();
+function loop(t) {
+const dt = Math.min((t - last) / 1000, 0.05);
+last = t;
+update(dt);
+draw();
+requestAnimationFrame(loop);
+}
+spawnGrid();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
