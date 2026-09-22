@@ -1,9 +1,9 @@
-# Space Defense (Phase 1 starter)
+# Void Sentinel
 
-A Games and AI course starter. Phase 1 is built: open `index.html` in a browser and it plays.
+A canvas arcade shooter with original pixel art. Open `index.html` directly in a browser; no build, dependencies or image downloads are needed.
 
-**Your job:** open this folder in Cursor and implement Phase 2 of `PRD.md` (requirements R1 to R7), one requirement per prompt, one git commit per requirement.
+Move with arrows or A/D, press Space to start/fire, P to pause/resume, and R to restart after game over.
 
-First prompt: `Read PRD.md. Phase 1 is already built. Implement Phase 2, requirement R1 only.`
+R1–R7 include enemy fire, three lives, descent defeat, session hi-score, faster waves, destructible shields and game states. The bonus UFO crosses the top every 20 seconds of active play and awards 50–300 points when hit. No SFX.
 
-Rules: run the game after every approved change · read every diff summary · commit each working state · re-skin with YOUR generated art before the deadline (see PRD section 9).
+See `PRD.md` for the original requirements and `PROMPTS.md` for the implementation and art prompt archive.
