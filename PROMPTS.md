@@ -10,3 +10,7 @@ Starter from course template (already built). Commit: Phase 1 starter.
 ## R2
 **Prompt:** Implement R2 from PRD.md only. Do not modify any other behavior.
 **Outcome:** Player starts with 3 lives shown top-left; each damaging hit removes one life and grants 1 second of blinking invulnerability. At 0 lives, gameplay stops and GAME OVER appears.
+
+## R3
+**Prompt:** Implement R3 from PRD.md only. Do not modify any other behavior.
+**Outcome:** A living invader's bottom edge reaching the player's row immediately stops gameplay and shows GAME OVER, regardless of remaining lives or invulnerability.

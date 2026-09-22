@@ -22,8 +22,9 @@
 // speeds up per kill), bullet-vs-invader collision, crude grid
 // respawn when cleared. R1 adds invader fire and visible hits.
 // R2 adds lives, blinking invulnerability, and game over at zero.
+// R3 ends the game when a living invader reaches the player's row.
 // NOT here yet:
-// lose-by-descent, score, waves, shields, game states.
+// score, waves, shields, game states.
 // ============================================================
 
 const canvas = document.getElementById('game');
@@ -33,6 +34,7 @@ const W = canvas.width, H = canvas.height;
 // --- player
 const ship = { x: W/2, y: H-50, w: 48, h: 20, speed: 300 };
 let lives = 3;
+let lostByDescent = false;
 let invulnerabilityTimer = 0;
 const keys = {};
 document.addEventListener('keydown', e => { keys[e.key] = true; if (e.key === ' ') e.preventDefault(); });
@@ -71,7 +73,7 @@ function invaderScreenPos(inv) {
 }
 
 function update(dt) {
-  if (lives === 0) return;
+  if (lives === 0 || lostByDescent) return;
 
   // ship movement, clamped to the canvas
   if (keys['ArrowLeft'] || keys['a']) ship.x -= ship.speed * dt;
@@ -121,6 +123,12 @@ function update(dt) {
       (marchDir < 0 && minX + marchDir*marchSpeed*dt <= 8)) {
     marchDir *= -1;
     gridY += 24;      // the drop
+  }
+
+  // R3: reaching the player's row ends play, even during invulnerability.
+  if (alive.some(inv => invaderScreenPos(inv).y + SIZE >= ship.y)) {
+    lostByDescent = true;
+    return;
   }
 
   // bullet vs invaders
@@ -189,7 +197,7 @@ function draw() {
   ctx.font = '20px monospace';
   ctx.fillText(`Lives: ${lives}`, 16, 28);
 
-  if (lives === 0) {
+  if (lives === 0 || lostByDescent) {
     ctx.save();
     ctx.font = '36px monospace';
     ctx.textAlign = 'center';
