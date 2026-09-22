@@ -14,3 +14,7 @@ Starter from course template (already built). Commit: Phase 1 starter.
 ## R3
 **Prompt:** Implement R3 from PRD.md only. Do not modify any other behavior.
 **Outcome:** A living invader's bottom edge reaching the player's row immediately stops gameplay and shows GAME OVER, regardless of remaining lives or invulnerability.
+
+## R4
+**Prompt:** Implement R4 from PRD.md only. Do not modify any other behavior.
+**Outcome:** Invader kills award 30/20/10/10 points from top row to bottom. Score and hi-score appear top-right; session storage preserves the hi-score when the page is reloaded to restart, while score starts at zero.

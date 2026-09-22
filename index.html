@@ -23,13 +23,24 @@
 // respawn when cleared. R1 adds invader fire and visible hits.
 // R2 adds lives, blinking invulnerability, and game over at zero.
 // R3 ends the game when a living invader reaches the player's row.
+// R4 adds row-based scoring and a session hi-score.
 // NOT here yet:
-// score, waves, shields, game states.
+// waves, shields, game states.
 // ============================================================
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const W = canvas.width, H = canvas.height;
+
+// --- score (R4); reloading restarts play but keeps this tab's hi-score
+let score = 0;
+let hiScore = 0;
+const HI_SCORE_KEY = 'space-defense-hi-score';
+try {
+  const saved = Number(sessionStorage.getItem(HI_SCORE_KEY));
+  if (Number.isSafeInteger(saved) && saved >= 0) hiScore = saved;
+} catch (_) { /* Keep playing if browser storage is unavailable. */ }
+const ROW_POINTS = [30, 20, 10, 10]; // top to bottom
 
 // --- player
 const ship = { x: W/2, y: H-50, w: 48, h: 20, speed: 300 };
@@ -138,6 +149,13 @@ function update(dt) {
       if (bullet.x > p.x && bullet.x < p.x + SIZE && bullet.y > p.y && bullet.y < p.y + SIZE) {
         inv.alive = false;
         bullet = null;
+        score += ROW_POINTS[inv.row];
+        if (score > hiScore) {
+          hiScore = score;
+          try {
+            sessionStorage.setItem(HI_SCORE_KEY, String(hiScore));
+          } catch (_) { /* The in-memory hi-score still works. */ }
+        }
         marchSpeed += 4;   // classic ramp: fewer invaders, faster march
         break;
       }
@@ -196,6 +214,10 @@ function draw() {
   ctx.fillStyle = '#efefef';
   ctx.font = '20px monospace';
   ctx.fillText(`Lives: ${lives}`, 16, 28);
+  ctx.save();
+  ctx.textAlign = 'right';
+  ctx.fillText(`Score: ${score}  Hi-score: ${hiScore}`, W - 16, 28);
+  ctx.restore();
 
   if (lives === 0 || lostByDescent) {
     ctx.save();
