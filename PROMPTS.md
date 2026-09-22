@@ -22,3 +22,7 @@ Starter from course template (already built). Commit: Phase 1 starter.
 ## R5
 **Prompt:** Implement R5 from PRD.md only. Do not modify any other behavior.
 **Outcome:** Clearing the grid advances to the next wave, starting 48 pixels lower and 20% faster per wave. A 1.2-second WAVE N banner pauses play between waves; leftover shots are cleared while lives and score carry over.
+
+## R6
+**Prompt:** Implement R6 from PRD.md only. Do not modify any other behavior.
+**Outcome:** Four bunkers between the ship and invaders each absorb six hits total from player or enemy shots. Each hit consumes the shot, dims the bunker, and removes one lit health segment; the sixth destroys it. Shield damage persists between waves.
