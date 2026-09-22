@@ -21,7 +21,8 @@
 // a 4x8 invader grid marching as one unit (edge -> drop + reverse,
 // speeds up per kill), bullet-vs-invader collision, crude grid
 // respawn when cleared. R1 adds invader fire and visible hits.
-// NOT here yet: lives,
+// R2 adds lives, blinking invulnerability, and game over at zero.
+// NOT here yet:
 // lose-by-descent, score, waves, shields, game states.
 // ============================================================
 
@@ -31,6 +32,8 @@ const W = canvas.width, H = canvas.height;
 
 // --- player
 const ship = { x: W/2, y: H-50, w: 48, h: 20, speed: 300 };
+let lives = 3;
+let invulnerabilityTimer = 0;
 const keys = {};
 document.addEventListener('keydown', e => { keys[e.key] = true; if (e.key === ' ') e.preventDefault(); });
 document.addEventListener('keyup',   e => { keys[e.key] = false; });
@@ -38,7 +41,7 @@ document.addEventListener('keyup',   e => { keys[e.key] = false; });
 // --- one player bullet on screen at a time (PRD 4: forces aimed shots)
 let bullet = null; // {x, y}
 
-// --- invader fire (R1); the hit flash is visual only, not invulnerability
+// --- invader fire (R1); the hit flash accompanies R2 invulnerability
 const enemyBullets = [];
 let enemyFireTimer = nextEnemyFireDelay();
 let shipHitFlash = 0;
@@ -68,12 +71,15 @@ function invaderScreenPos(inv) {
 }
 
 function update(dt) {
+  if (lives === 0) return;
+
   // ship movement, clamped to the canvas
   if (keys['ArrowLeft'] || keys['a']) ship.x -= ship.speed * dt;
   if (keys['ArrowRight'] || keys['d']) ship.x += ship.speed * dt;
   ship.x = Math.max(ship.w/2, Math.min(W - ship.w/2, ship.x));
 
   shipHitFlash = Math.max(0, shipHitFlash - dt);
+  invulnerabilityTimer = Math.max(0, invulnerabilityTimer - dt);
   for (let i = enemyBullets.length - 1; i >= 0; i--) {
     const shot = enemyBullets[i];
     shot.y += 250 * dt;
@@ -85,7 +91,12 @@ function update(dt) {
       shot.y + 12 >= ship.y - 10 && shot.y <= ship.y;
     if (hitsBody || hitsCannon) {
       enemyBullets.splice(i, 1);
-      shipHitFlash = 0.25;
+      if (invulnerabilityTimer === 0) {
+        lives--;
+        shipHitFlash = 0.25;
+        invulnerabilityTimer = 1;
+        if (lives === 0) return;
+      }
     } else if (shot.y > H) {
       enemyBullets.splice(i, 1);
     }
@@ -148,9 +159,11 @@ function draw() {
   ctx.fillRect(0, 0, W, H);
 
   // ship (placeholder rectangle: your re-skin replaces this)
-  ctx.fillStyle = shipHitFlash > 0 ? '#ff4444' : '#ffc627';
-  ctx.fillRect(ship.x - ship.w/2, ship.y, ship.w, ship.h);
-  ctx.fillRect(ship.x - 4, ship.y - 10, 8, 10);
+  if (invulnerabilityTimer === 0 || Math.ceil(invulnerabilityTimer * 10) % 2 === 0) {
+    ctx.fillStyle = shipHitFlash > 0 ? '#ff4444' : '#ffc627';
+    ctx.fillRect(ship.x - ship.w/2, ship.y, ship.w, ship.h);
+    ctx.fillRect(ship.x - 4, ship.y - 10, 8, 10);
+  }
 
   // Enemy shots are red to distinguish them from the player's bullet.
   ctx.fillStyle = '#ff6666';
@@ -170,6 +183,18 @@ function draw() {
     const p = invaderScreenPos(inv);
     ctx.fillRect(p.x + 8, p.y + 10, SIZE - 16, SIZE - 24);
     ctx.fillRect(p.x + 2, p.y + 18, SIZE - 4, 8);
+  }
+
+  ctx.fillStyle = '#efefef';
+  ctx.font = '20px monospace';
+  ctx.fillText(`Lives: ${lives}`, 16, 28);
+
+  if (lives === 0) {
+    ctx.save();
+    ctx.font = '36px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('GAME OVER', W/2, H/2);
+    ctx.restore();
   }
 }
 
