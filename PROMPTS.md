@@ -18,3 +18,7 @@ Starter from course template (already built). Commit: Phase 1 starter.
 ## R4
 **Prompt:** Implement R4 from PRD.md only. Do not modify any other behavior.
 **Outcome:** Invader kills award 30/20/10/10 points from top row to bottom. Score and hi-score appear top-right; session storage preserves the hi-score when the page is reloaded to restart, while score starts at zero.
+
+## R5
+**Prompt:** Implement R5 from PRD.md only. Do not modify any other behavior.
+**Outcome:** Clearing the grid advances to the next wave, starting 48 pixels lower and 20% faster per wave. A 1.2-second WAVE N banner pauses play between waves; leftover shots are cleared while lives and score carry over.
